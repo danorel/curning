@@ -1,2 +1,2 @@
-# curning
-Research work for Curriculum Learning
+# pynalapro
+Python Natural Language Processing practice

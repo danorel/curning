@@ -71,50 +71,70 @@ def normalize_numerical(df: pd.DataFrame):
     return cp_df
 
 
+def split_by_quantiles(df: pd.DataFrame,
+                       column: str,
+                       labels: list):
+    quantiles_series = pd.Series(pd.Categorical(
+        [Difficulty.UNKNOWN.value] * len(df), categories=labels))
+
+    quantiles_factors = [0, .10, .25, .75, .90, 1]
+    quantiles_values = [df[column].quantile(
+        factor) for factor in quantiles_factors]
+
+    quantiles_pairs = []
+    for i in range(1, len(quantiles_values)):
+        quantiles_pairs.append((quantiles_values[i - 1], quantiles_values[i]))
+
+    for label, (from_quantile, to_quantile) in zip(labels, quantiles_pairs):
+        quantile_index = df.loc[(df[column] >= from_quantile) & (
+            df[column] <= to_quantile)].index
+        quantiles_series.iloc[quantile_index] = label
+
+    return quantiles_series
+
+
 def split_by_difficulty_numerical(df: pd.DataFrame):
     cp_df = normalize_numerical(df.copy())
 
-    cp_df[DIFFICULTY_COLUMN] = Difficulty.UNKNOWN
+    cp_df[DIFFICULTY_COLUMN] = Difficulty.UNKNOWN.value
 
     for column in cp_df[cp_df.columns.difference([DIFFICULTY_COLUMN])]:
-        q_series = pd.qcut(
-            cp_df[column],
-            q=[0, 0.10, 0.25, 0.75, 0.90, 1],
-            labels=[
-                f"{Difficulty.HARD}-first",
-                f"{Difficulty.MEDIUM}-first",
-                Difficulty.EASY,
-                f"{Difficulty.MEDIUM}-last",
-                f"{Difficulty.HARD}-last",
-            ])
+        q_series = split_by_quantiles(cp_df, column, labels=[
+            f"{Difficulty.HARD.value}-1",
+            f"{Difficulty.MEDIUM.value}-1",
+            Difficulty.EASY.value,
+            f"{Difficulty.MEDIUM.value}-2",
+            f"{Difficulty.HARD.value}-2"
+        ])
 
         q_series = q_series.map({  # type: ignore
-            f"{Difficulty.MEDIUM}-first": Difficulty.MEDIUM,
-            f"{Difficulty.MEDIUM}-last": Difficulty.MEDIUM,
-            f"{Difficulty.HARD}-first": Difficulty.HARD,
-            f"{Difficulty.HARD}-last": Difficulty.HARD,
+            f"{Difficulty.MEDIUM.value}-1": Difficulty.MEDIUM.value,
+            f"{Difficulty.MEDIUM.value}-2": Difficulty.MEDIUM.value,
+            f"{Difficulty.HARD.value}-1": Difficulty.HARD.value,
+            f"{Difficulty.HARD.value}-2": Difficulty.HARD.value,
+            Difficulty.EASY.value: Difficulty.EASY.value
         })
 
         cp_unknown_index = cp_df.loc[cp_df[DIFFICULTY_COLUMN]
-                                     == Difficulty.UNKNOWN].index
+                                     == Difficulty.UNKNOWN.value].index
         cp_df.iloc[cp_unknown_index, cp_df.columns.get_loc(
             DIFFICULTY_COLUMN)] = q_series.iloc[cp_unknown_index]  # type: ignore
 
         cp_nan_index = cp_df.loc[cp_df[DIFFICULTY_COLUMN].isnull()].index
         cp_df.iloc[cp_nan_index, cp_df.columns.get_loc(
-            DIFFICULTY_COLUMN)] = Difficulty.UNKNOWN
+            DIFFICULTY_COLUMN)] = Difficulty.UNKNOWN.value
 
         def merge_conflicts(a: Difficulty, b: Difficulty, c: Difficulty):
-            a_or_b_index = cp_df.loc[
+            ab_index = cp_df.loc[
                 (cp_df[DIFFICULTY_COLUMN] == a) |
                 (cp_df[DIFFICULTY_COLUMN] == b)
             ].index
 
             # type: ignore
-            c_index = q_series.iloc[a_or_b_index].loc[q_series == c].index
+            c_index = q_series.iloc[ab_index].loc[q_series == c].index
 
             cp_df.iloc[c_index, cp_df.columns.get_loc(
-                DIFFICULTY_COLUMN)] = Difficulty.CONFLICT
+                DIFFICULTY_COLUMN)] = Difficulty.CONFLICT.value
 
         merge_conflicts(Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD)
         merge_conflicts(Difficulty.HARD, Difficulty.MEDIUM, Difficulty.EASY)

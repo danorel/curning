@@ -91,21 +91,17 @@ def split_by_difficulty_binary(df: pd.DataFrame):
         cp_df.iloc[cp_nan_index, cp_df.columns.get_loc(
             DIFFICULTY_COLUMN)] = Difficulty.UNKNOWN.value
 
-        def merge_conflicts(a: Difficulty, b: Difficulty, c: Difficulty):
-            ab_index = cp_df.loc[
-                (cp_df[DIFFICULTY_COLUMN] == a.value) |
-                (cp_df[DIFFICULTY_COLUMN] == b.value)
-            ].index
+        def merge_conflicts(a: Difficulty, b: Difficulty):
+            a_index = cp_df.loc[cp_df[DIFFICULTY_COLUMN] == a.value].index
 
-            b_ab_series = b_series.iloc[ab_index]
-            b_abc_series = b_ab_series.loc[b_ab_series == c.value]
+            b_a_series = b_series.iloc[a_index]
+            b_ab_series = b_a_series.loc[b_a_series == b.value]
 
-            cp_df.iloc[b_abc_series.index, cp_df.columns.get_loc(
+            cp_df.iloc[b_ab_series.index, cp_df.columns.get_loc(
                 DIFFICULTY_COLUMN)] = Difficulty.CONFLICT.value
 
-        merge_conflicts(Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD)
-        merge_conflicts(Difficulty.HARD, Difficulty.MEDIUM, Difficulty.EASY)
-        merge_conflicts(Difficulty.HARD, Difficulty.EASY, Difficulty.MEDIUM)
+        merge_conflicts(Difficulty.EASY, Difficulty.HARD)
+        merge_conflicts(Difficulty.HARD, Difficulty.EASY)
 
     return cp_df
 
